@@ -7,8 +7,7 @@ from .models import Order
 from .serializers import OrderSerializer
 from decimal import Decimal
 from django.db.models import Sum, F, Q
-from core.models import Discount, Order, OrderItem, Product
-
+from core.models import Discount, Order, DiscountRule
 
 @api_view(['POST'])
 def signup(request):
@@ -45,94 +44,110 @@ class OrderViewSet(viewsets.ModelViewSet):
         user = order.user
         discounts = []
 
-        # Discount amounts
+        # Fetch active discount rules
+        rules = DiscountRule.objects.filter(active=True)
+
+        # Initialize discount amounts
         percent_discount = None
         flat_discount = None
-        loyalty_user = False
+        category_discounts = []
 
-        # 1. Percentage Discount — 10% off if total > ₹5000
-        if total_order_value > Decimal('5000'):
-            percent_discount = total_order_value * Decimal('0.10')
-
-        # 2. Flat Discount — ₹500 off if user completed 5 eligible purchases
+        # Check loyalty eligibility once
         eligible_orders = Order.objects.filter(
             user=user,
             status__in=['completed', 'shipped']
         ).exclude(id=order.id).count()
 
-        if eligible_orders >= 5:
-            flat_discount = Decimal('500')
-            loyalty_user = True
+        loyalty_user = eligible_orders >= 5
 
-        # Decide between flat and percentage
+        for rule in rules:
+            if rule.rule_type == DiscountRule.PERCENTAGE:
+                # Check threshold for percentage discount
+                if total_order_value >= (rule.threshold or 0) and rule.percentage:
+                    amount = total_order_value * (rule.percentage / 100)
+                    percent_discount = {
+                        'amount': amount,
+                        'description': f"{rule.percentage}% off orders above ₹{rule.threshold}"
+                    }
+
+            elif rule.rule_type == DiscountRule.FLAT:
+                # Apply flat discount only if user is loyal (based on your existing logic)
+                if loyalty_user and rule.flat_amount:
+                    flat_discount = {
+                        'amount': rule.flat_amount,
+                        'description': f"Flat ₹{rule.flat_amount} off for loyalty program"
+                    }
+
+            elif rule.rule_type == DiscountRule.CATEGORY_BASED:
+                # Calculate category-based discount
+                if rule.category and rule.percentage and rule.min_quantity:
+                    cat_items = order.items.filter(product__category=rule.category)
+                    total_qty = cat_items.aggregate(total_qty=Sum('quantity'))['total_qty'] or 0
+
+                    if total_qty >= rule.min_quantity:
+                        cat_total = cat_items.aggregate(
+                            total=Sum(F('price_at_purchase') * F('quantity'))
+                        )['total'] or Decimal('0')
+                        amount = cat_total * (rule.percentage / 100)
+                        category_discounts.append({
+                            'amount': amount,
+                            'description': f"{rule.percentage}% off on {rule.category.name} (min {rule.min_quantity} items)"
+                        })
+
+        # Stack discounts as per your original logic
+
+        # Apply category discounts first (stackable)
+        for cat_discount in category_discounts:
+            discounts.append(Discount(
+                order=order,
+                discount_type='category_based',
+                description=cat_discount['description'],
+                amount=cat_discount['amount']
+            ))
+
+        # Decide between percentage and flat discount
         if flat_discount and percent_discount:
             if loyalty_user:
                 # Apply both
                 discounts.append(Discount(
                     order=order,
                     discount_type='percentage',
-                    description='10% off for orders above ₹5000',
-                    amount=percent_discount
+                    description=percent_discount['description'],
+                    amount=percent_discount['amount']
                 ))
                 discounts.append(Discount(
                     order=order,
                     discount_type='flat',
-                    description='Loyalty bonus: ₹500 off after 5 completed purchases',
-                    amount=flat_discount
+                    description=flat_discount['description'],
+                    amount=flat_discount['amount']
                 ))
             else:
-                # Apply the better one
-                if flat_discount > percent_discount:
-                    discounts.append(Discount(
-                        order=order,
-                        discount_type='flat',
-                        description='Loyalty bonus: ₹500 off after 5 completed purchases',
-                        amount=flat_discount
-                    ))
-                else:
-                    discounts.append(Discount(
-                        order=order,
-                        discount_type='percentage',
-                        description='10% off for orders above ₹5000',
-                        amount=percent_discount
-                    ))
+                # Apply the better discount only
+                better = flat_discount if flat_discount['amount'] > percent_discount['amount'] else percent_discount
+                discount_type = 'flat' if better == flat_discount else 'percentage'
+                discounts.append(Discount(
+                    order=order,
+                    discount_type=discount_type,
+                    description=better['description'],
+                    amount=better['amount']
+                ))
         elif flat_discount:
             discounts.append(Discount(
                 order=order,
                 discount_type='flat',
-                description='Loyalty bonus: ₹500 off after 5 completed purchases',
-                amount=flat_discount
+                description=flat_discount['description'],
+                amount=flat_discount['amount']
             ))
         elif percent_discount:
             discounts.append(Discount(
                 order=order,
                 discount_type='percentage',
-                description='10% off for orders above ₹5000',
-                amount=percent_discount
-            ))
-
-        # 3. Category-Based Discount — 5% off Electronics if quantity > 3
-        electronics_items = order.items.filter(product__category='electronics')
-        electronics_quantity = electronics_items.aggregate(
-            total_qty=Sum('quantity')
-        )['total_qty'] or 0
-
-        if electronics_quantity > 3:
-            electronics_total = electronics_items.aggregate(
-                total=Sum(F('price_at_purchase') * F('quantity'))
-            )['total'] or Decimal('0')
-            electronics_discount = electronics_total * Decimal('0.05')
-
-            discounts.append(Discount(
-                order=order,
-                discount_type='category_based',
-                description='5% off on Electronics (more than 3 items)',
-                amount=electronics_discount
+                description=percent_discount['description'],
+                amount=percent_discount['amount']
             ))
 
         # Save all calculated discounts
         Discount.objects.bulk_create(discounts)
-
 
     def perform_create(self, serializer):
         order = serializer.save(user=self.request.user)

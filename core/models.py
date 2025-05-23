@@ -2,6 +2,11 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.db.models import Sum, F
 
+class Category(models.Model):
+    name = models.CharField(max_length=100)
+
+    def __str__(self):
+        return self.name
 class Product(models.Model):
     CATEGORY_CHOICES = [
         ('electronics', 'Electronics'),
@@ -68,3 +73,48 @@ class Discount(models.Model):
     
     def __str__(self):
         return f"{self.discount_type} - ₹{self.amount} (Order #{self.order.id})"
+
+
+class DiscountRule(models.Model):
+    PERCENTAGE = 'percentage'
+    FLAT = 'flat'
+    CATEGORY_BASED = 'category_based'
+
+    RULE_TYPE_CHOICES = [
+        (PERCENTAGE, 'Percentage Discount'),
+        (FLAT, 'Flat Discount'),
+        (CATEGORY_BASED, 'Category-Based Discount'),
+    ]
+
+    rule_type = models.CharField(max_length=20, choices=RULE_TYPE_CHOICES)
+    threshold = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        help_text="Minimum order total to qualify (for percentage discount)"
+    )
+    percentage = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+        help_text="Discount percentage (e.g., 10 for 10%)"
+    )
+    flat_amount = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        help_text="Flat discount amount"
+    )
+    category = models.ForeignKey(
+        Category, null=True, blank=True, on_delete=models.SET_NULL,
+        help_text="Category for category-based discount"
+    )
+    min_quantity = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text="Minimum quantity required for category-based discount"
+    )
+    active = models.BooleanField(default=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.get_rule_type_display()} rule"
+
+    class Meta:
+        verbose_name = "Discount Rule"
+        verbose_name_plural = "Discount Rules"
