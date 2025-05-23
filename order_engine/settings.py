@@ -100,6 +100,8 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+# After successful Login, redirect to user's orders
+LOGIN_REDIRECT_URL = '/api/orders/'
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/

@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.db.models import Sum, F
 
 class Product(models.Model):
     CATEGORY_CHOICES = [
@@ -32,6 +33,20 @@ class Order(models.Model):
 
     def __str__(self):
         return f"Order #{self.id} by {self.user.username}"
+    
+    def get_total_price(self):
+        # Sum of all order items (price * quantity)
+        total = self.items.aggregate(
+            total=Sum(F('price_at_purchase') * F('quantity'))
+        )['total'] or 0
+        return total
+
+    def get_final_price(self):
+        total = self.get_total_price()
+        discounts = self.discounts.aggregate(
+            total_discount=Sum('amount')
+        )['total_discount'] or 0
+        return total - discounts
 
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, related_name='items', on_delete=models.CASCADE)
@@ -44,3 +59,12 @@ class OrderItem(models.Model):
 
     def get_total_price(self):
         return self.price_at_purchase * self.quantity
+
+class Discount(models.Model):
+    order = models.ForeignKey(Order, related_name='discounts', on_delete=models.CASCADE)
+    discount_type = models.CharField(max_length=50)  # e.g., 'percentage', 'flat', 'category_based'
+    description = models.CharField(max_length=255)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    
+    def __str__(self):
+        return f"{self.discount_type} - ₹{self.amount} (Order #{self.order.id})"

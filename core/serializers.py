@@ -1,11 +1,15 @@
 from rest_framework import serializers
-from .models import Product, Order, OrderItem
+from .models import Product, Order, OrderItem, Discount
 
 class ProductSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
         fields = ['id', 'name', 'price', 'category']
 
+class DiscountSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Discount
+        fields = ['discount_type', 'description', 'amount']
 class OrderItemSerializer(serializers.ModelSerializer):
     product = ProductSerializer(read_only=True)
     product_id = serializers.PrimaryKeyRelatedField(
@@ -18,16 +22,18 @@ class OrderItemSerializer(serializers.ModelSerializer):
 
 class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True)
-    status = serializers.CharField(read_only=True)  # prevent setting this at creation
+    discounts = DiscountSerializer(many=True, read_only=True)
+    total_price = serializers.SerializerMethodField()
+    final_price = serializers.SerializerMethodField()
 
     class Meta:
         model = Order
-        fields = ['id', 'user', 'created_at', 'status', 'items']
+        fields = ['id', 'created_at', 'status', 'items', 'discounts', 'total_price', 'final_price']
         read_only_fields = ['user', 'created_at']
 
     def create(self, validated_data):
         items_data = validated_data.pop('items')
-        user = self.context['request'].user
+        user = validated_data.pop('user')
         order = Order.objects.create(user=user, **validated_data)
 
         for item in items_data:
@@ -35,7 +41,13 @@ class OrderSerializer(serializers.ModelSerializer):
                 order=order,
                 product=item['product'],
                 quantity=item['quantity'],
-                price_at_purchase=item['product'].price  # capture current price
+                price_at_purchase=item['product'].price
             )
 
         return order
+    
+    def get_total_price(self, obj):
+        return obj.get_total_price()
+
+    def get_final_price(self, obj):
+        return obj.get_final_price()
