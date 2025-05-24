@@ -1,3 +1,16 @@
+"""
+core/serializers.py
+
+Defines
+1. Product Serializer
+2. User Serializer
+3. Discount Serializer
+4. Order Item Serializer
+5. Order Serializer
+
+for handling API serialization, validation and responses.
+"""
+
 from rest_framework import serializers
 from .models import Product, Order, OrderItem, Discount, User
 
