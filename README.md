@@ -25,7 +25,7 @@ Run these commands to set up the project:
 <pre>
 
     git clone https://github.com/riyajha981219/order-discount-engine.git  
-    cd order-engine  
+    cd order_engine  
     python3 -m venv venv  
     source venv/bin/activate    # Linux/macOS  
     venv\Scripts\activate       # Windows  
