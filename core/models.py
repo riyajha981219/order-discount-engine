@@ -12,7 +12,6 @@ class Product(models.Model):
         ('electronics', 'Electronics'),
         ('fashion', 'Fashion'),
         ('home', 'Home & Living'),
-        # add more if needed
     ]
     
     name = models.CharField(max_length=255)
@@ -24,7 +23,7 @@ class Product(models.Model):
 
 class Order(models.Model):
     STATUS_CHOICES = [
-        ('created', 'Created'),
+        ('placed', 'Placed'),
         ('shipped', 'Shipped'),
         ('completed', 'Completed'),
         ('delayed', 'Delayed'),
@@ -34,7 +33,7 @@ class Order(models.Model):
     
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='created')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='placed')
 
     def __str__(self):
         return f"Order #{self.id} by {self.user.username}"
