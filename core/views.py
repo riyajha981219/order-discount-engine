@@ -9,6 +9,12 @@ from decimal import Decimal
 from django.db.models import Sum, F, Q
 from core.models import Discount, Order, DiscountRule
 
+"""This function let's the user signup to the website.
+Arguments:
+    request
+Author:
+    Riya Jha <jhariya.1912@gmail.com>
+"""
 @api_view(['POST'])
 def signup(request):
     username = request.data.get('username')
@@ -27,12 +33,30 @@ class OrderViewSet(viewsets.ModelViewSet):
     serializer_class = OrderSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    """This function gets all the orders placed by the user logged in to the website.
+    If the user is admin, then all orders across the website will be displayed.
+
+    Author:
+        Riya Jha <jhariya.1912@gmail.com>
+    """
     def get_queryset(self):
         # Only return orders for the logged-in user or admin
         if self.request.user.is_staff:
             return Order.objects.all()
         return Order.objects.filter(user=self.request.user)
 
+    """This function applies the applicable discount on the order.
+    The following discounts can be applied:
+        1. Loyalty Discount: If the user has at least 5 orders that were `delivered` or `shipped` - give ₹500 off.
+        2. Percentage Discount: If the user placed an order of more than ₹5000, give a 10% discount on the total amount.
+        3. Category Based Discount: If the user placed an order of more than 3 electronic items, give a 5% discount on the total amount.
+
+    Arguments:
+        Order {order} - the order to be applied discount on
+
+    Author:
+        Riya Jha <jhariya.1912@gmail.com>
+    """
     def apply_discounts(self, order):
         # Clear existing discounts (in case of re-calculation)
         order.discounts.all().delete()
@@ -149,10 +173,25 @@ class OrderViewSet(viewsets.ModelViewSet):
         # Save all calculated discounts
         Discount.objects.bulk_create(discounts)
 
+    """This function creates the order record in the `Orders` table.
+    
+    Arguments:
+        serializer - `Order Serializer to save the order and return appropriate API response`
+    
+    Author: 
+        Riya Jha <jhariya.1912@gmail.com>
+    """
     def perform_create(self, serializer):
         order = serializer.save(user=self.request.user)
         self.apply_discounts(order)
 
+        """This function gives the admin leverage to update the status of any order.
+
+        Returns:
+           string: Describes which order's status was updated to what status.
+        Author:
+            Riya Jha <jhariya.1912@gmail.com>
+        """
     @action(detail=True, methods=['patch'], url_path='update-status')
     def update_status(self, request, pk=None):
         if not request.user.is_staff:
@@ -160,7 +199,6 @@ class OrderViewSet(viewsets.ModelViewSet):
                             status=status.HTTP_403_FORBIDDEN)
 
         order = self.get_object()
-        print(order)
         new_status = request.data.get('status')
 
         if new_status not in dict(Order.STATUS_CHOICES):

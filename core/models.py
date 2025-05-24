@@ -1,13 +1,26 @@
+"""
+core/models.py
+
+Models for Category, Product, Order, OrderItem, Discount and DiscountRule.
+
+"""
+
 from django.db import models
 from django.contrib.auth.models import User
 from django.db.models import Sum, F
 
 class Category(models.Model):
+    """
+    Defines the categories of products available to shop from on the website.
+    """
     name = models.CharField(max_length=100)
 
     def __str__(self):
         return self.name
 class Product(models.Model):
+    """
+    Defines the products available for purchase.
+    """
     CATEGORY_CHOICES = [
         ('electronics', 'Electronics'),
         ('fashion', 'Fashion'),
@@ -22,6 +35,9 @@ class Product(models.Model):
         return self.name
 
 class Order(models.Model):
+    """
+    Defines orders placed by users.
+    """
     STATUS_CHOICES = [
         ('placed', 'Placed'),
         ('shipped', 'Shipped'),
@@ -53,6 +69,9 @@ class Order(models.Model):
         return total - discounts
 
 class OrderItem(models.Model):
+    """
+    Defines relationship between order and product.
+    """
     order = models.ForeignKey(Order, related_name='items', on_delete=models.CASCADE)
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField()
@@ -65,6 +84,9 @@ class OrderItem(models.Model):
         return self.price_at_purchase * self.quantity
 
 class Discount(models.Model):
+    """
+    Defines table to keep track of all the discounts per order.
+    """
     order = models.ForeignKey(Order, related_name='discounts', on_delete=models.CASCADE)
     discount_type = models.CharField(max_length=50)  # e.g., 'percentage', 'flat', 'category_based'
     description = models.CharField(max_length=255)
@@ -75,6 +97,9 @@ class Discount(models.Model):
 
 
 class DiscountRule(models.Model):
+    """
+    Defines the discount rules, more can be added.
+    """
     PERCENTAGE = 'percentage'
     FLAT = 'flat'
     CATEGORY_BASED = 'category_based'
