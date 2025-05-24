@@ -24,7 +24,7 @@ A Django-based order management system with advanced discount engine supporting 
 Run these commands to set up the project:
 <pre>
 
-    git clone https://github.com/yourusername/order-engine.git  
+    git clone https://github.com/riyajha981219/order-discount-engine.git  
     cd order-engine  
     python3 -m venv venv  
     source venv/bin/activate    # Linux/macOS  
