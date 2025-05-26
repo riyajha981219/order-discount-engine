@@ -10,7 +10,7 @@ Defines
 
 for handling API serialization, validation and responses.
 """
-
+from django.core.cache import cache
 from rest_framework import serializers
 from .models import Product, Order, OrderItem, Discount, User
 
@@ -68,10 +68,25 @@ class OrderSerializer(serializers.ModelSerializer):
         return order
     
     def get_total_price(self, obj):
-        return f"{obj.get_total_price():.2f}"
+        cache_key = f"order_{obj.id}_total_price"
+        value = cache.get(cache_key)
+        if value is None:
+            value = f"{obj.get_total_price():.2f}"
+            cache.set(cache_key, value, timeout=300)  # Cache for 5 mins
+        return value
 
     def get_final_price(self, obj):
-        return f"{obj.get_final_price():.2f}"
+        cache_key = f"order_{obj.id}_final_price"
+        value = cache.get(cache_key)
+        if value is None:
+            value = f"{obj.get_final_price():.2f}"
+            cache.set(cache_key, value, timeout=300)
+        return value
     
     def get_total_quantity(self, obj):
-        return sum(item.quantity for item in obj.items.all())
+        cache_key = f"order_{obj.id}_total_quantity"
+        value = cache.get(cache_key)
+        if value is None:
+            value = sum(item.quantity for item in obj.items.all())
+            cache.set(cache_key, value, timeout=300)
+        return value
